@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="gl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>[Tool Name] · Coruña Labs</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<style>
+  /* ===== Coruña Labs shared design tokens — extracted from Bus Works ===== */
+  :root{
+    --ink:#16181a;--muted:#6b7177;--faint:#9aa0a6;--hairline:#e2e3e5;
+    --paper:#fbfbfa;--panel:#ffffff;--rest:#b4b8bc;
+    --error:#a50813; /* override per project if a more fitting alert color exists */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Inter","Helvetica Neue",Arial,system-ui,sans-serif;color:var(--ink);
+    background:var(--paper);-webkit-font-smoothing:antialiased;overflow:hidden}
+  #map{position:absolute;inset:0}
+
+  /* ---------- Masthead: gradient bleed, flush top-left, no card/shadow ---------- */
+  .masthead{position:absolute;top:0;left:0;z-index:5;padding:20px 22px 26px;max-width:380px;
+    background:linear-gradient(180deg,rgba(251,251,250,.94),rgba(251,251,250,0))}
+  .masthead .top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;pointer-events:none}
+  .lab{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+    font-weight:600;margin:0 0 7px;display:flex;align-items:center;gap:7px}
+  .lab a{color:inherit;text-decoration:none;pointer-events:auto}
+  .lab a:hover{color:var(--ink)}
+  .masthead h1{font-size:23px;line-height:1.12;margin:0;font-weight:660;letter-spacing:-.015em}
+  .masthead p.sub{font-size:12.5px;line-height:1.5;color:var(--muted);margin:9px 0 0;max-width:320px;pointer-events:none}
+  .masthead p.note{font-size:11.5px;color:var(--faint);margin:7px 0 0;font-style:italic}
+
+  .langs{pointer-events:auto;display:flex;gap:2px;flex:0 0 auto;margin-top:2px}
+  .langs button{background:none;border:none;font:inherit;font-size:11px;font-weight:600;
+    letter-spacing:.04em;color:var(--faint);cursor:pointer;padding:3px 6px;border-radius:5px;
+    text-transform:uppercase}
+  .langs button:hover{color:var(--muted);background:rgba(0,0,0,.04)}
+  .langs button.on{color:var(--ink);background:rgba(0,0,0,.06)}
+
+  /* ---------- Rail: persistent scrollable list — OPTIONAL, delete block if unused ---------- */
+  .rail{position:absolute;z-index:5;right:14px;top:14px;bottom:14px;width:200px;background:var(--panel);
+    border:1px solid var(--hairline);border-radius:12px;
+    box-shadow:0 1px 2px rgba(0,0,0,.03),0 10px 30px rgba(0,0,0,.07);
+    display:flex;flex-direction:column;overflow:hidden}
+  .rail h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+    margin:0;padding:14px 16px 11px;border-bottom:1px solid var(--hairline);font-weight:600;
+    display:flex;justify-content:space-between;align-items:baseline}
+  .rail h2 .clear{font-size:10px;letter-spacing:.02em;text-transform:none;color:var(--faint);
+    cursor:pointer;font-weight:500;visibility:hidden}
+  .rail h2 .clear.show{visibility:visible}
+  .rail h2 .clear:hover{color:var(--ink)}
+  .rail .scroll{overflow-y:auto;padding:7px;flex:1}
+  .chip{display:flex;align-items:center;gap:10px;padding:6px 9px;border-radius:8px;cursor:pointer;
+    user-select:none;transition:background .12s}
+  .chip:hover{background:#f4f5f6}
+  .chip.active{background:#f0f1f2}
+  .badge{flex:0 0 auto;min-width:27px;height:22px;padding:0 6px;border-radius:6px;display:flex;
+    align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;
+    font-variant-numeric:tabular-nums;background:var(--rest);transition:background .12s}
+  .chip .dest{font-size:11.5px;color:var(--muted);line-height:1.25;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .chip.active .dest{color:var(--ink)}
+  .rail .foot{border-top:1px solid var(--hairline);padding:10px 16px;font-size:10px;
+    color:var(--faint);line-height:1.5}
+  .rail .foot a{color:var(--faint);text-decoration:underline;text-underline-offset:2px}
+
+  /* ---------- Callout, default: native MapLibre popup — use for 1-3 short facts ---------- */
+  .maplibregl-popup-content{font-family:inherit;border-radius:9px;padding:11px 13px;
+    box-shadow:0 8px 28px rgba(0,0,0,.14);border:1px solid var(--hairline)}
+  .pop-title{font-size:13px;font-weight:660;margin:0 0 2px;display:flex;align-items:center;gap:7px}
+  .pop-swatch{width:11px;height:11px;border-radius:3px;flex:0 0 auto}
+  .pop-sub{font-size:11px;color:var(--muted);margin:0}
+
+  /* ---------- Callout, variant: docked panel — use when content needs more room
+     (address + several fields + an embedded image, etc). Same tokens as the rail,
+     not the popup — it's a structural surface, not a transient bubble. Delete the
+     whole block if this tool only ever needs the popup above. ---------- */
+  .panel{position:absolute;z-index:20;background:var(--panel);border:1px solid var(--hairline);
+    box-shadow:0 1px 2px rgba(0,0,0,.03),0 10px 30px rgba(0,0,0,.07);transition:transform .25s ease}
+  @media (min-width:720px){
+    .panel{top:14px;right:14px;bottom:14px;width:320px;border-radius:12px;transform:translateX(120%)}
+    .panel.open{transform:translateX(0)}
+  }
+  @media (max-width:719px){
+    .panel{left:0;right:0;bottom:0;max-height:60vh;border-radius:12px 12px 0 0;transform:translateY(100%)}
+    .panel.open{transform:translateY(0)}
+  }
+  .panel__inner{padding:18px;overflow-y:auto;height:100%}
+  .panel__close{position:absolute;top:10px;right:10px;background:none;border:none;font-size:1.2rem;
+    line-height:1;color:var(--faint);cursor:pointer;padding:4px 8px}
+  .panel__close:hover{color:var(--ink)}
+  .panel__media{width:100%;height:150px;border-radius:9px;overflow:hidden;background:var(--hairline);
+    margin-bottom:12px}
+  .panel__title{margin:0 30px 3px 0;font-size:15px;font-weight:660;color:var(--ink)}
+  .panel__subtitle{margin:0 0 14px;font-size:11.5px;color:var(--muted);font-weight:600}
+  .panel__field{margin-bottom:11px}
+  .panel__field-label{font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--faint);margin:0 0 2px}
+  .panel__field-value{font-size:12.5px;margin:0;color:var(--ink)}
+  .panel__tag{display:inline-block;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;margin-top:2px}
+  .panel__note{margin-top:16px;padding-top:12px;border-top:1px solid var(--hairline);
+    font-size:11px;color:var(--faint);line-height:1.45}
+
+  /* ---------- Toast: centered loading/error state ---------- */
+  .toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;
+    background:var(--panel);border:1px solid var(--hairline);border-radius:9px;padding:14px 18px;
+    font-size:13px;color:var(--muted);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .toast.err{color:var(--error)}
+
+  @media (max-width:640px){
+    .masthead{max-width:none;width:100%}
+    .rail{top:auto;bottom:12px;right:12px;left:12px;width:auto;max-height:42%}
+    .maplibregl-ctrl-bottom-left{display:none} /* zoom buttons: desktop only */
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="masthead">
+  <div class="top">
+    <div>
+      <p class="lab"><a href="https://corunalabs.org">Coruña Labs</a></p>
+      <h1 id="m-title">[Tool Name]</h1>
+    </div>
+    <div class="langs" id="langs">
+      <button data-lang="gl">GL</button><button data-lang="es">ES</button><button data-lang="en">EN</button>
+    </div>
+  </div>
+  <p class="sub" id="m-sub"></p>
+  <p class="sub note" id="m-note"></p>
+</div>
+
+<!-- OPTIONAL — delete this block for tools with no persistent browsable list -->
+<div class="rail" aria-label="[list label]">
+  <h2><span id="r-title"></span> <span class="clear" id="clear"></span></h2>
+  <div class="scroll" id="chips"></div>
+  <div class="foot" id="r-foot"></div>
+</div>
+
+<!-- OPTIONAL — delete if this tool only ever uses the native popup, not the docked panel -->
+<aside class="panel" aria-live="polite">
+  <div class="panel__inner"></div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==========================================================================
+   Coruña Labs — shared map tool core (extracted from Bus Works)
+   Copy this file to start a new tool. Blocks marked TOOL-SPECIFIC are where
+   this tool's text, data, and layers go. Everything marked SHARED should
+   stay consistent across tools unless there's a real reason to diverge —
+   that consistency is the point of this template.
+   ========================================================================== */
+
+/* ---------- TOOL-SPECIFIC: strings ---------- */
+const I18N = {
+  gl:{ title:"[Tool Name]", sub:"[one-line description]", note:"",
+       loading:"Cargando…", error:"Non se puideron cargar os datos." },
+  es:{ title:"[Tool Name]", sub:"[one-line description]", note:"",
+       loading:"Cargando…", error:"No se pudieron cargar los datos." },
+  en:{ title:"[Tool Name]", sub:"[one-line description]", note:"",
+       loading:"Loading…", error:"Couldn't load the data." },
+};
+const LANGS = ["gl","es","en"];
+const STORAGE_KEY = "[toolname].lang"; // e.g. "busworks.lang", "miscoles.lang"
+
+/* ---------- SHARED: language via ?lang= + localStorage (no separate /es/ /en/ pages) ---------- */
+const params = new URLSearchParams(location.search);
+function initialLang(){
+  const u = params.get("lang");
+  if(u && LANGS.includes(u)) return u;
+  try{ const s = localStorage.getItem(STORAGE_KEY); if(s && LANGS.includes(s)) return s; }catch(e){}
+  return "gl";
+}
+let lang = initialLang();
+
+function syncURL(extra){
+  const p = new URLSearchParams();
+  if(lang && lang!=="gl") p.set("lang",lang); // gl is default, keep URL clean
+  if(extra) for(const [k,v] of Object.entries(extra)) if(v) p.set(k,v);
+  const qs = p.toString();
+  history.replaceState(null,"", qs ? `?${qs}` : location.pathname);
+}
+
+const toast=document.getElementById("toast");
+const showToast=(m,e)=>{toast.style.display="block";toast.textContent=m;toast.classList.toggle("err",!!e)};
+const hideToast=()=>toast.style.display="none";
+
+/* ---------- SHARED: apply language to the DOM (safe to run anytime) ---------- */
+function applyText(){
+  const t = I18N[lang];
+  document.documentElement.lang = lang;
+  document.getElementById("m-title").textContent = t.title;
+  document.getElementById("m-sub").textContent = t.sub;
+  document.getElementById("m-note").textContent = t.note || "";
+  document.querySelectorAll(".langs button").forEach(b=>b.classList.toggle("on",b.dataset.lang===lang));
+  if(toast.style.display==="block" && !toast.classList.contains("err")) toast.textContent=t.loading;
+  // TOOL-SPECIFIC: also refresh rail title, open panel content, etc. in the new language here
+}
+applyText();
+showToast(I18N[lang].loading,false);
+
+document.getElementById("langs").addEventListener("click",(e)=>{
+  const b=e.target.closest("button"); if(!b) return;
+  lang=b.dataset.lang;
+  try{ localStorage.setItem(STORAGE_KEY,lang); }catch(err){}
+  applyText(); syncURL();
+});
+
+/* ---------- SHARED: map init ---------- */
+const BASEMAP = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+
+// Outer safety boundary — keeps panning within the service area regardless
+// of what any one tool's data actually covers. Edit these four numbers
+// directly to change the scope for this project — plain compass directions,
+// not MapLibre's [lng, lat] corner-array format, so there's no order to get
+// wrong when tinkering. Padded generously for large/wide screens, where the
+// visible span at a given zoom is bigger than on a phone — a too-tight box
+// here is what caused the earlier maxBounds/fitBounds conflict.
+const SERVICE_AREA = {
+  north: 43.4898,
+  south: 43.2089,
+  east: -8.0937,
+  west: -8.75, // moved further west — was -8.6099, too tight for zoom-out from the default center
+};
+const MAX_BOUNDS = [
+  [SERVICE_AREA.west, SERVICE_AREA.south], // SW corner, MapLibre's required order
+  [SERVICE_AREA.east, SERVICE_AREA.north], // NE corner
+];
+
+const map = new maplibregl.Map({
+  container:"map", style:BASEMAP,
+  center: [-8.4056, 43.3696], zoom: 14, // deliberate default view — city center, not the whole box
+  maxBounds: MAX_BOUNDS, // panning is still capped to the service area
+  minZoom: 12, // how far out is "too far" — tune between 7-8 to taste
+  attributionControl:false, dragRotate:false, pitchWithRotate:false
+});
+map.touchZoomRotate.disableRotation();
+map.addControl(new maplibregl.NavigationControl({showCompass:false}),"bottom-left");
+new ResizeObserver(() => map.resize()).observe(document.getElementById("map"));
+// ^ self-heals the classic MapLibre bug where the map is constructed before its
+// container reaches final layout (e.g. a same-tab navigation from another page) —
+// without this, the canvas can permanently bake in a wrong, clipped size.
+
+/* ---------- TOOL-SPECIFIC: data + layers ---------- */
+map.on("load", async () => {
+  try{
+    // const data = await fetch("data/whatever.geojson").then(r=>{if(!r.ok)throw new Error("data");return r.json()});
+    // map.addSource("main", {type:"geojson", data});
+    // map.addLayer({ id:"main-dots", type:"circle", source:"main", paint:{...} });
+    hideToast();
+  }catch(e){
+    showToast(I18N[lang].error,true);
+    console.error(e);
+  }
+});
+
+/* ---------- SHARED: popup — default callout, 1-3 short facts ---------- */
+const popup = new maplibregl.Popup({closeButton:false,closeOnClick:true,offset:12});
+// map.on("click","main-dots",(e)=>{
+//   const p=e.features[0].properties;
+//   popup.setLngLat(e.lngLat).setHTML(`
+//     <p class="pop-title"><span class="pop-swatch" style="background:${p._color}"></span>${p.title}</p>
+//     <p class="pop-sub">${p.subtitle||""}</p>`).addTo(map);
+// });
+
+/* ---------- SHARED: docked panel — variant for richer content ---------- */
+const panel = document.querySelector(".panel");
+function panelField(label, value){
+  if(!value) return "";
+  return `<div class="panel__field"><p class="panel__field-label">${label}</p><p class="panel__field-value">${value}</p></div>`;
+}
+function openPanel(html){
+  panel.querySelector(".panel__inner").innerHTML =
+    `<button class="panel__close" aria-label="×">&times;</button>` + html;
+  panel.querySelector(".panel__close").addEventListener("click", closePanel);
+  panel.classList.add("open");
+}
+function closePanel(){ panel.classList.remove("open"); }
+document.addEventListener("keydown",(e)=>{ if(e.key==="Escape") closePanel(); });
+</script>
+</body>
+</html>
