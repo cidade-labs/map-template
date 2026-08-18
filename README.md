@@ -1,12 +1,12 @@
-# Coruña Labs — map tool template
+# Cidade Labs — map tool template
 
-Shared foundation for Coruña Labs map tools, extracted from Bus Works (the
+Shared foundation for Cidade Labs map tools, extracted from Bus Works (the
 first tool, and the canonical reference for this pattern). Copy
 `template.html` to start a new tool; keep the `SHARED` blocks as-is unless
 there's a real reason to diverge, and fill in the `TOOL-SPECIFIC` blocks.
 
 Each tool stays its own independently-deployed static repo under the
-`coruna-labs` org — this template is a starting point to copy, not a live
+`cidade-labs` org — this template is a starting point to copy, not a live
 shared dependency every site loads at runtime. That's deliberate: one bad
 edit to a shared stylesheet shouldn't be able to break every deployed tool
 at once.
@@ -41,7 +41,7 @@ clean system fallback. Deliberate: one less network request.
 ## Structural components
 
 - **Masthead** — gradient fade (not a card), flush top-left. Lab wordmark
-  links to corunalabs.org, tool name, one-line description, optional italic
+  links to cidadelabs.org, tool name, one-line description, optional italic
   note for a caveat (Bus Works uses it for "these buses are simulated").
 - **Language switcher** — plain text buttons, not a bordered pill. State
   lives in `?lang=` + localStorage, not separate `/es/` `/en/` pages — one
@@ -100,7 +100,7 @@ standard interchange format between a data pipeline and the map.
 
 ## Starting a new tool
 
-1. Copy `template.html` into a new `coruna-labs/<tool-name>` repo.
+1. Copy `template.html` into a new `cidade-labs/<tool-name>` repo.
 2. Fill in `I18N` strings, `STORAGE_KEY`, and the masthead title/description.
 3. Delete the rail and/or panel blocks if the tool doesn't need them.
 4. Build the data pipeline (source → clean GeoJSON) separately, documented
@@ -108,4 +108,4 @@ standard interchange format between a data pipeline and the map.
    `scripts/` for the pattern.
 5. Wire up the `TOOL-SPECIFIC` sections: sources, layers, popup/panel
    content.
-6. Deploy independently (GitHub Pages), link from corunalabs.org.
+6. Deploy independently (GitHub Pages), link from cidadelabs.org.
